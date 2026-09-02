@@ -34,6 +34,16 @@ if [ "${KILLBILL_CACHE_CONFIG_REDIS:-false}" = "true" ]; then
       ;;
   esac
   export KILLBILL_CACHE_CONFIG_REDIS_URL
+
+  # Two of Kill Bill 0.24's caches hold objects that do not survive a round trip
+  # through Redis: a VersionedCatalog comes back with its injected priceOverride
+  # null, so the very next findPlan() throws NullPointerException. The damage is
+  # invisible — the deployment stays green, accounts and the catalog are created
+  # normally, and only subscription creation fails, which then parks the account.
+  # Measured on 0.24.21: with these two caches excluded the identical call
+  # returns 201 and invoices are generated, and Redis still backs the other
+  # thirteen caches. The catalog is re-read from tenant_kvs per access instead.
+  export KB_org_killbill_cache_disabled="${KB_org_killbill_cache_disabled:-tenant-catalog,overridden-plan}"
 fi
 
 # ---------------------------------------------------------------------------

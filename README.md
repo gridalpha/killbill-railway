@@ -28,4 +28,5 @@ list. The ones worth knowing:
 | `KILLBILL_API_KEY` / `KILLBILL_API_SECRET` | credentials of the tenant created on first boot |
 | `KILLBILL_DAO_URL` / `KILLBILL_DAO_USER` / `KILLBILL_DAO_PASSWORD` | MariaDB connection |
 | `KILLBILL_CACHE_CONFIG_REDIS` / `..._REDIS_URL` / `..._REDIS_PASSWORD` | Redis-backed distributed cache |
+| `KB_org_killbill_cache_disabled` | caches kept out of Redis; defaults to the two that cannot be serialized |
 | `KB_org_killbill_server_baseUrl` | the deployment's own public URL |
