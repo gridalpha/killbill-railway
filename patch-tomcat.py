@@ -46,7 +46,7 @@ SECURITY_FILTER = """
     </init-param>
     <init-param>
       <param-name>antiClickJackingOption</param-name>
-      <param-value>SAMEORIGIN</param-value>
+      <param-value>DENY</param-value>
     </init-param>
     <init-param>
       <param-name>blockContentTypeSniffingEnabled</param-name>
