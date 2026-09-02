@@ -11,6 +11,8 @@
 #      size the JVM heap from the cgroup, bind the JDWP and JMX ports to
 #      loopback, and create the default tenant through Kill Bill's own API.
 #   3. a root entrypoint that chowns the volume and drops back to `tomcat`.
+#
+# It also applies the two Tomcat fixes in patch-tomcat.py, which Kaui shares.
 FROM killbill/killbill:0.24.21
 
 USER root
@@ -18,6 +20,11 @@ USER root
 RUN mkdir -p /var/lib/tomcat/conf/Catalina/localhost
 COPY rewrite.config /var/lib/tomcat/conf/Catalina/localhost/rewrite.config
 COPY railway-entrypoint.sh /var/lib/killbill/railway-entrypoint.sh
+COPY patch-tomcat.py /usr/local/bin/patch-tomcat.py
+
+# Trust Railway's edge so the audit trail records the real client address, and
+# turn on Tomcat's own security-header filter.
+RUN python3 /usr/local/bin/patch-tomcat.py /var/lib/tomcat/conf
 
 RUN chmod 0644 /var/lib/tomcat/conf/Catalina/localhost/rewrite.config \
  && chmod 0755 /var/lib/killbill/railway-entrypoint.sh \

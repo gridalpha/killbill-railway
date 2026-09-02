@@ -12,9 +12,10 @@ It adds only what a Railway deployment needs and the image cannot express:
 | `Dockerfile` | `FROM killbill/killbill:0.24.21`, plus the two files below |
 | `rewrite.config` | Maps `/healthz` onto Kill Bill's `/1.0/healthcheck`, because Railway's health-check path may not contain a `.` |
 | `railway-entrypoint.sh` | Seeds the OSGI bundle directory onto the volume, sizes the JVM heap from the cgroup, binds the JDWP and JMX ports to loopback, creates the default tenant, then drops to the image's `tomcat` user |
+| `patch-tomcat.py` | Makes Tomcat trust Railway's edge as a proxy and turns on its security-header filter. Shared by both images |
+| `kaui/Dockerfile` | `FROM killbill/kaui:4.0.25` plus `patch-tomcat.py`. Selected with `RAILWAY_DOCKERFILE_PATH=kaui/Dockerfile`; the build context is the repository root |
 
-Kaui (the admin UI), MariaDB and Redis run from their published images and need
-no files here.
+MariaDB and Redis run from their published images and need no files here.
 
 ## Configuration
 
