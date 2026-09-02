@@ -1,18 +1,22 @@
 #!/usr/bin/env python3
-"""Two edits both killbill-cloud Tomcat images need on Railway.
+"""Make Tomcat trust Railway's edge as a reverse proxy.
 
-1. RemoteIpValve is configured with no `internalProxies`, so its default list
-   (RFC1918 only) never matches Railway's edge: `x-forwarded-proto` is ignored,
-   every request looks like plain HTTP, and the recorded client address is the
-   proxy. Railway reaches containers from 100.64.0.0/10 and its own edge appears
-   in X-Forwarded-For inside 152.233.0.0/17, so trusting both lands the valve on
-   the real client. Forged entries are not a risk here: Railway's edge overwrites
-   any client-supplied X-Forwarded-For before the container sees it.
+killbill-cloud's server.xml declares RemoteIpValve with no `internalProxies`, so
+the valve falls back to its RFC1918 default, which never matches Railway: every
+request is seen as plain HTTP and the recorded client is the proxy rather than
+the caller. Railway reaches containers from 100.64.0.0/10 and its own edge
+appears in X-Forwarded-For inside 152.233.0.0/17, so trusting both makes the
+valve walk past them onto the real client. Forged entries are not a risk here —
+Railway's edge overwrites any client-supplied X-Forwarded-For before the
+container sees it.
 
-2. Tomcat ships HttpHeaderSecurityFilter commented out. With the valve fixed
-   above, requests are correctly seen as secure, so the filter can emit HSTS —
-   which is what keeps a session cookie off plain HTTP, since the Rails session
-   store in Kaui hardcodes its options and offers no `secure` switch.
+Measured on Kaui after this patch: the Rails request log records the caller's
+public address, where it previously recorded 100.64.0.x.
+
+Note that Tomcat's HttpHeaderSecurityFilter is deliberately *not* enabled here.
+Adding it to $CATALINA_BASE/conf/web.xml has no effect on either image — the
+headers a patched build emits are identical to an unpatched one — so there is no
+supported way to add HSTS without repackaging the WAR.
 """
 import sys
 
@@ -28,62 +32,15 @@ INTERNAL_PROXIES = (
 
 VALVE = 'className="org.apache.catalina.valves.RemoteIpValve"'
 
-SECURITY_FILTER = """
-  <filter>
-    <filter-name>httpHeaderSecurity</filter-name>
-    <filter-class>org.apache.catalina.filters.HttpHeaderSecurityFilter</filter-class>
-    <init-param>
-      <param-name>hstsEnabled</param-name>
-      <param-value>true</param-value>
-    </init-param>
-    <init-param>
-      <param-name>hstsMaxAgeSeconds</param-name>
-      <param-value>31536000</param-value>
-    </init-param>
-    <init-param>
-      <param-name>hstsIncludeSubDomains</param-name>
-      <param-value>false</param-value>
-    </init-param>
-    <init-param>
-      <param-name>antiClickJackingOption</param-name>
-      <param-value>DENY</param-value>
-    </init-param>
-    <init-param>
-      <param-name>blockContentTypeSniffingEnabled</param-name>
-      <param-value>true</param-value>
-    </init-param>
-    <async-supported>true</async-supported>
-  </filter>
-  <filter-mapping>
-    <filter-name>httpHeaderSecurity</filter-name>
-    <url-pattern>/*</url-pattern>
-    <dispatcher>REQUEST</dispatcher>
-  </filter-mapping>
-</web-app>"""
+path = f"{CONF_DIR}/server.xml"
+with open(path) as fh:
+    body = fh.read()
 
-
-def patch(path, old, new, already):
-    with open(path) as fh:
-        body = fh.read()
-    if already in body:
-        print(f"{path}: already patched")
-        return
-    if old not in body:
-        raise SystemExit(f"{path}: expected marker not found: {old!r}")
+if "internalProxies=" in body:
+    print(f"{path}: already patched")
+elif VALVE not in body:
+    raise SystemExit(f"{path}: RemoteIpValve not found; refusing to guess")
+else:
     with open(path, "w") as fh:
-        fh.write(body.replace(old, new, 1))
-    print(f"{path}: patched")
-
-
-patch(
-    f"{CONF_DIR}/server.xml",
-    VALVE,
-    f'{VALVE} internalProxies="{INTERNAL_PROXIES}"',
-    "internalProxies=",
-)
-patch(
-    f"{CONF_DIR}/web.xml",
-    "</web-app>",
-    SECURITY_FILTER,
-    "<filter-name>httpHeaderSecurity</filter-name>",
-)
+        fh.write(body.replace(VALVE, f'{VALVE} internalProxies="{INTERNAL_PROXIES}"', 1))
+    print(f"{path}: RemoteIpValve now trusts Railway's edge")

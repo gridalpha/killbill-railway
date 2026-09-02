@@ -22,8 +22,7 @@ COPY rewrite.config /var/lib/tomcat/conf/Catalina/localhost/rewrite.config
 COPY railway-entrypoint.sh /var/lib/killbill/railway-entrypoint.sh
 COPY patch-tomcat.py /usr/local/bin/patch-tomcat.py
 
-# Trust Railway's edge so the audit trail records the real client address, and
-# turn on Tomcat's own security-header filter.
+# Trust Railway's edge so logs and audit records carry the real client address.
 RUN python3 /usr/local/bin/patch-tomcat.py /var/lib/tomcat/conf
 
 RUN chmod 0644 /var/lib/tomcat/conf/Catalina/localhost/rewrite.config \
